@@ -14,6 +14,7 @@ const shortURLLength = 6 // 8 символов в base64
 
 var (
 	urlMap = make(map[string]string)
+	idMap  = make(map[string]string)
 	mutex  sync.Mutex
 )
 
@@ -25,7 +26,7 @@ func generateShortURL() (string, error) {
 		}
 		res := base64.URLEncoding.EncodeToString(b)
 
-		_, exists := urlMap[res]
+		_, exists := idMap[res]
 
 		if !exists {
 			return res, nil
@@ -35,33 +36,33 @@ func generateShortURL() (string, error) {
 
 }
 
-func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
+func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
+	shortID := strings.TrimPrefix(r.URL.Path, "/")
 
-	if r.Method == http.MethodGet {
-		shortID := strings.TrimPrefix(r.URL.Path, "/")
+	mutex.Lock()
+	defer mutex.Unlock()
 
-		mutex.Lock()
-		defer mutex.Unlock()
-
-		if url, ok := urlMap[shortID]; ok {
-			w.Header().Set("Location", url)
-			w.WriteHeader(http.StatusTemporaryRedirect)
-		} else {
-			http.Error(w, "URL Not Found", http.StatusNotFound)
-		}
-
-		return
+	if url, ok := idMap[shortID]; ok {
+		w.Header().Set("Location", url)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	} else {
+		http.Error(w, "URL Not Found", http.StatusNotFound)
 	}
 
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	return
+}
 
+func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(body) == 0 {
+		http.Error(w, "Empty body", http.StatusBadRequest)
 		return
 	}
 
@@ -84,7 +85,7 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		urlMap[longURL] = shortID
-		urlMap[shortID] = longURL
+		idMap[shortID] = longURL
 	}
 
 	shortURL := fmt.Sprintf("http://localhost:8080/%s", shortID)
@@ -92,6 +93,19 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte(shortURL))
+
+}
+
+func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
+
+	switch r.Method {
+	case http.MethodGet:
+		shortenURLHandlerGet(w, r)
+	case http.MethodPost:
+		shortenURLHandlerPost(w, r)
+	default:
+		http.Error(w, "Only GET and POST allowed", http.StatusMethodNotAllowed)
+	}
 
 }
 
