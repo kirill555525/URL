@@ -48,8 +48,7 @@ func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "URL Not Found", http.StatusNotFound)
 	}
-
-	return
+	
 }
 
 func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
