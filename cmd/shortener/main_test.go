@@ -11,6 +11,15 @@ import (
 
 func TestShortenURLHandler(t *testing.T) {
 
+	server := httptest.NewServer(URLRouter())
+	defer server.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Остановить редиректы
+		},
+	}
+
 	testsPost := []struct {
 		name         string
 		body         string
@@ -29,12 +38,12 @@ func TestShortenURLHandler(t *testing.T) {
 
 	for _, tt := range testsPost {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
-			w := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodPost, server.URL+"/", strings.NewReader(tt.body))
+			require.NoError(t, err)
 
-			shortenURLHandler(w, request)
+			res, err := client.Do(request)
+			require.NoError(t, err)
 
-			res := w.Result()
 			defer res.Body.Close()
 
 			require.Equal(t, tt.expectedCode, res.StatusCode, "Ошибка в POST запросе")
@@ -49,12 +58,14 @@ func TestShortenURLHandler(t *testing.T) {
 				require.Equal(t, urlMap[tt.body], id)
 				require.Equal(t, idMap[id], tt.body)
 
-				request = httptest.NewRequest(http.MethodGet, "/"+id, nil)
-				w = httptest.NewRecorder()
-				shortenURLHandler(w, request)
-				res = w.Result()
+				request, err = http.NewRequest(http.MethodGet, server.URL+"/"+id, nil)
+				require.NoError(t, err)
 
+				res, err := client.Do(request)
+
+				require.NoError(t, err)
 				defer res.Body.Close()
+
 				require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "Ошибка в GET запросе")
 			}
 
@@ -68,7 +79,7 @@ func TestShortenURLHandler(t *testing.T) {
 		method       string
 	}{
 		{
-			name: "FAIL GET #1", url: "/", expectedCode: http.StatusNotFound, method: http.MethodGet,
+			name: "FAIL GET #1", url: "/", expectedCode: http.StatusMethodNotAllowed, method: http.MethodGet,
 		},
 		{
 			name: "FAIL GET #2", url: "/123", expectedCode: http.StatusNotFound, method: http.MethodGet,
@@ -83,11 +94,15 @@ func TestShortenURLHandler(t *testing.T) {
 
 	for _, tt := range testsFail {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.method, tt.url, nil)
-			w := httptest.NewRecorder()
-			shortenURLHandler(w, request)
+			request, err := http.NewRequest(tt.method, server.URL+tt.url, nil)
+			require.NoError(t, err)
 
-			require.Equal(t, tt.expectedCode, w.Code)
+			res, err := client.Do(request)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedCode, res.StatusCode)
+
 		})
 	}
 

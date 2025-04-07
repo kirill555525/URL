@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"strings"
@@ -37,7 +38,7 @@ func generateShortURL() (string, error) {
 }
 
 func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
-	shortID := strings.TrimPrefix(r.URL.Path, "/")
+	shortID := chi.URLParam(r, "shortID")
 
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -48,7 +49,7 @@ func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "URL Not Found", http.StatusNotFound)
 	}
-	
+
 }
 
 func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
@@ -95,25 +96,17 @@ func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
+func URLRouter() chi.Router {
+	router := chi.NewRouter()
+	router.Get("/{shortID}", shortenURLHandlerGet)
+	router.Post("/", shortenURLHandlerPost)
 
-	switch r.Method {
-	case http.MethodGet:
-		shortenURLHandlerGet(w, r)
-	case http.MethodPost:
-		shortenURLHandlerPost(w, r)
-	default:
-		http.Error(w, "Only GET and POST allowed", http.StatusMethodNotAllowed)
-	}
-
+	return router
 }
 
 func main() {
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", shortenURLHandler)
-
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8080", URLRouter()); err != nil {
 		panic(err)
 	}
 }
