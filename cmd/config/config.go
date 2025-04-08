@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"os"
 )
 
 type Config struct {
@@ -16,6 +17,14 @@ func Init() *Config {
 	baseURL := flag.String("b", "http://localhost:8080", "Base URL for short links (e.g., http://localhost:8080/)")
 
 	flag.Parse()
+
+	if envAddr := os.Getenv("SERVER_ADDRESS"); envAddr != "" {
+		*addr = envAddr
+	}
+
+	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
+		*baseURL = envBaseURL
+	}
 
 	cfg = &Config{
 		Addr:    *addr,
