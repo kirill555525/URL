@@ -1,11 +1,11 @@
 package main
 
 import (
-	"URL/cmd/config"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	"github.com/kirill555525/URL/cmd/config"
 	"io"
 	"net/http"
 	"strings"
