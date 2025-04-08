@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kirill555525/URL/cmd/config"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 )
 
 func TestShortenURLHandler(t *testing.T) {
+
+	_ = config.Init()
 
 	server := httptest.NewServer(URLRouter())
 	defer server.Close()

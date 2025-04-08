@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	"github.com/kirill555525/URL/cmd/config"
 	"io"
 	"net/http"
 	"strings"
@@ -52,61 +53,67 @@ func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	defer r.Body.Close()
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if len(body) == 0 {
-		http.Error(w, "Empty body", http.StatusBadRequest)
-		return
-	}
-
-	longURL := strings.TrimSpace(string(body))
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	var shortID string
-
-	if url, ok := urlMap[longURL]; ok {
-		shortID = url
-	} else {
-
-		shortID, err = generateShortURL()
+func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		defer r.Body.Close()
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		urlMap[longURL] = shortID
-		idMap[shortID] = longURL
+		if len(body) == 0 {
+			http.Error(w, "Empty body", http.StatusBadRequest)
+			return
+		}
+
+		longURL := strings.TrimSpace(string(body))
+
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		var shortID string
+
+		if url, ok := urlMap[longURL]; ok {
+			shortID = url
+		} else {
+
+			shortID, err = generateShortURL()
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			urlMap[longURL] = shortID
+			idMap[shortID] = longURL
+		}
+
+		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
+
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(shortURL))
+
 	}
-
-	shortURL := fmt.Sprintf("http://localhost:8080/%s", shortID)
-
-	w.WriteHeader(http.StatusCreated)
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(shortURL))
-
 }
 
 func URLRouter() chi.Router {
+
+	cfg := config.GetConfig()
+
 	router := chi.NewRouter()
 	router.Get("/{shortID}", shortenURLHandlerGet)
-	router.Post("/", shortenURLHandlerPost)
+	router.Post("/", shortenURLHandlerPost(cfg))
 
 	return router
 }
 
 func main() {
+	cfg := config.Init()
 
-	if err := http.ListenAndServe(":8080", URLRouter()); err != nil {
+	if err := http.ListenAndServe(cfg.Addr, URLRouter()); err != nil {
 		panic(err)
 	}
 }
