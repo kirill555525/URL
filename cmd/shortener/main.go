@@ -1,11 +1,11 @@
 package main
 
 import (
+	"URL/cmd/config"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"github.com/go-chi/chi/v5"
-	"github.com/kirill555525/URL/cmd/config"
 	"io"
 	"net/http"
 	"strings"
@@ -90,7 +90,7 @@ func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
 			idMap[shortID] = longURL
 		}
 
-		shortURL := fmt.Sprintf("%s%s", cfg.BaseURL, shortID)
+		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
 
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "text/plain")
