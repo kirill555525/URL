@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/kirill555525/URL/cmd/config"
+	"github.com/kirill555525/URL/internal/logger"
 	"io"
 	"net/http"
 	"strings"
@@ -104,14 +105,18 @@ func URLRouter() chi.Router {
 	cfg := config.GetConfig()
 
 	router := chi.NewRouter()
-	router.Get("/{shortID}", shortenURLHandlerGet)
-	router.Post("/", shortenURLHandlerPost(cfg))
+	router.Get("/{shortID}", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerGet)))
+	router.Post("/", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerPost(cfg))))
 
 	return router
 }
 
 func main() {
 	cfg := config.Init()
+	err := logger.Initialize(cfg.FlagLogLevel)
+	if err != nil {
+		panic(err)
+	}
 
 	if err := http.ListenAndServe(cfg.Addr, URLRouter()); err != nil {
 		panic(err)
