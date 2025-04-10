@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/kirill555525/URL/cmd/config"
+	"github.com/kirill555525/URL/internal/logger"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -12,7 +13,10 @@ import (
 
 func TestShortenURLHandler(t *testing.T) {
 
-	_ = config.Init()
+	cfg := config.Init()
+
+	err := logger.Initialize(cfg.FlagLogLevel)
+	require.NoError(t, err)
 
 	server := httptest.NewServer(URLRouter())
 	defer server.Close()
