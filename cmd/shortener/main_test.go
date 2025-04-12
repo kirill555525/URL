@@ -1,10 +1,10 @@
 package main
 
 import (
-	"URL/cmd/config"
-	"URL/internal/logger"
-	"URL/internal/models"
 	"encoding/json"
+	"github.com/kirill555525/URL/cmd/config"
+	"github.com/kirill555525/URL/internal/logger"
+	"github.com/kirill555525/URL/internal/models"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -76,13 +76,13 @@ func TestShortenURLHandler(t *testing.T) {
 
 					var resp models.Request
 					require.NoError(t, json.NewDecoder(strings.NewReader(tt.body)).Decode(&resp))
-					tt.body = resp.Url
+					tt.body = resp.URL
 
 					var body models.Response
 					decoder := json.NewDecoder(res.Body)
 					err = decoder.Decode(&body)
 					require.NoError(t, err, "Ошибка в теле ответа POST запроса")
-					id = body.ShortUrl[len(body.ShortUrl)-8:]
+					id = body.ShortURL[len(body.ShortURL)-8:]
 
 				} else {
 					body, err := io.ReadAll(res.Body)

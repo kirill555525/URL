@@ -116,7 +116,7 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	longURL := req.Url
+	longURL := req.URL
 
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -142,7 +142,7 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 	shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
 
 	resp := models.Response{
-		ShortUrl: shortURL,
+		ShortURL: shortURL,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
