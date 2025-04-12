@@ -155,7 +155,6 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	return
 
 }
 
