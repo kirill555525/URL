@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/kirill555525/URL/cmd/config"
-	"github.com/kirill555525/URL/internal/logger"
+	"URL/cmd/config"
+	"URL/internal/logger"
+	"URL/internal/models"
+	"encoding/json"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -20,6 +22,7 @@ func TestShortenURLHandler(t *testing.T) {
 
 	server := httptest.NewServer(URLRouter())
 	defer server.Close()
+	t.Log(server.URL)
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -31,21 +34,31 @@ func TestShortenURLHandler(t *testing.T) {
 		name         string
 		body         string
 		expectedCode int
+		url          string
 	}{
 		{
-			name: "SUCCESS #1", body: `https://metanit.com/go/tutorial/9.5.php`, expectedCode: http.StatusCreated,
+			name: "SUCCESS #1", body: `https://metanit.com/go/tutorial/9.5.php`, expectedCode: http.StatusCreated, url: server.URL + "/",
 		},
 		{
-			name: "SUCCESS #2", body: "", expectedCode: http.StatusBadRequest,
+			name: "SUCCESS #2", body: "", expectedCode: http.StatusBadRequest, url: server.URL + "/",
 		},
 		{
-			name: "SUCCESS #3", body: `https://metanit.com/go/tutorial/9.5.php`, expectedCode: http.StatusCreated,
+			name: "SUCCESS #3", body: `https://metanit.com/go/tutorial/9.5.php`, expectedCode: http.StatusCreated, url: server.URL + "/",
+		},
+		{
+			name: "SUCCESS #4", body: "", expectedCode: http.StatusInternalServerError, url: server.URL + "/api/shorten",
+		},
+		{
+			name: "SUCCESS #5", body: `{"url": "https://www.google.nl/"}`, expectedCode: http.StatusCreated, url: server.URL + "/api/shorten",
+		},
+		{
+			name: "SUCCESS #6", body: `{"url": "https://www.google.nl/"}`, expectedCode: http.StatusCreated, url: server.URL + "/api/shorten",
 		},
 	}
 
 	for _, tt := range testsPost {
 		t.Run(tt.name, func(t *testing.T) {
-			request, err := http.NewRequest(http.MethodPost, server.URL+"/", strings.NewReader(tt.body))
+			request, err := http.NewRequest(http.MethodPost, tt.url, strings.NewReader(tt.body))
 			require.NoError(t, err)
 
 			res, err := client.Do(request)
@@ -56,11 +69,28 @@ func TestShortenURLHandler(t *testing.T) {
 			require.Equal(t, tt.expectedCode, res.StatusCode, "Ошибка в POST запросе")
 
 			if tt.expectedCode == http.StatusCreated {
-				body, err := io.ReadAll(res.Body)
 
-				require.NoError(t, err, "Ошибка в теле ответа POST запроса")
+				var id string
 
-				id := string(body[len(body)-8:])
+				if res.Header.Get("Content-Type") == "application/json" {
+
+					var resp models.Request
+					require.NoError(t, json.NewDecoder(strings.NewReader(tt.body)).Decode(&resp))
+					tt.body = resp.Url
+
+					var body models.Response
+					decoder := json.NewDecoder(res.Body)
+					err = decoder.Decode(&body)
+					require.NoError(t, err, "Ошибка в теле ответа POST запроса")
+					id = body.ShortUrl[len(body.ShortUrl)-8:]
+
+				} else {
+					body, err := io.ReadAll(res.Body)
+
+					require.NoError(t, err, "Ошибка в теле ответа POST запроса")
+
+					id = string(body[len(body)-8:])
+				}
 
 				require.Equal(t, urlMap[tt.body], id)
 				require.Equal(t, idMap[id], tt.body)

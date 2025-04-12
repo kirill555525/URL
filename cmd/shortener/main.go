@@ -3,10 +3,12 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/kirill555525/URL/cmd/config"
 	"github.com/kirill555525/URL/internal/logger"
+	"github.com/kirill555525/URL/internal/models"
 	"io"
 	"net/http"
 	"strings"
@@ -73,6 +75,7 @@ func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
 
 		mutex.Lock()
 		defer mutex.Unlock()
+		cfg := config.GetConfig()
 
 		var shortID string
 
@@ -83,7 +86,7 @@ func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
 			shortID, err = generateShortURL()
 
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
@@ -93,11 +96,67 @@ func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
 
 		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
 
-		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "text/plain")
+
+		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(shortURL))
 
 	}
+}
+
+func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+
+	var req models.Request
+
+	err := decoder.Decode(&req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	longURL := req.Url
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	cfg := config.GetConfig()
+
+	var shortID string
+
+	if url, ok := urlMap[longURL]; ok {
+		shortID = url
+	} else {
+
+		shortID, err = generateShortURL()
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		urlMap[longURL] = shortID
+		idMap[shortID] = longURL
+	}
+
+	shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
+
+	resp := models.Response{
+		ShortUrl: shortURL,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	w.WriteHeader(http.StatusCreated)
+
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(resp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	return
+
 }
 
 func URLRouter() chi.Router {
@@ -107,6 +166,7 @@ func URLRouter() chi.Router {
 	router := chi.NewRouter()
 	router.Get("/{shortID}", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerGet)))
 	router.Post("/", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerPost(cfg))))
+	router.Post("/api/shorten", logger.ResponseLogger(logger.RequestLogger(APIShortenHandlerPost)))
 
 	return router
 }
