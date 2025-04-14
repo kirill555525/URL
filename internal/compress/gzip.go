@@ -60,30 +60,16 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 func GzipMiddleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 
-		if r.Method == http.MethodGet {
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		ow := w
 
-		contentTypes := map[string]struct{}{
-			`text/html`:        {},
-			`application/json`: {},
-		}
-
-		contentType := r.Header.Get("Content-Type")
-
-		if _, ok := contentTypes[contentType]; ok {
-			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-				body, err := newCompressReader(r.Body)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				r.Body = body
-				defer body.Close()
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			body, err := newCompressReader(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
+			r.Body = body
+			defer body.Close()
 		}
 
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
