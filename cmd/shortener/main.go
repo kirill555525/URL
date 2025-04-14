@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/kirill555525/URL/cmd/config"
+	"github.com/kirill555525/URL/internal/compress"
 	"github.com/kirill555525/URL/internal/logger"
 	"github.com/kirill555525/URL/internal/models"
 	"io"
@@ -56,52 +57,50 @@ func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func shortenURLHandlerPost(cfg *config.Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		defer r.Body.Close()
+func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(body) == 0 {
+		http.Error(w, "Empty body", http.StatusBadRequest)
+		return
+	}
+
+	longURL := strings.TrimSpace(string(body))
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	cfg := config.GetConfig()
+
+	var shortID string
+
+	if url, ok := urlMap[longURL]; ok {
+		shortID = url
+	} else {
+
+		shortID, err = generateShortURL()
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		if len(body) == 0 {
-			http.Error(w, "Empty body", http.StatusBadRequest)
-			return
-		}
-
-		longURL := strings.TrimSpace(string(body))
-
-		mutex.Lock()
-		defer mutex.Unlock()
-		cfg := config.GetConfig()
-
-		var shortID string
-
-		if url, ok := urlMap[longURL]; ok {
-			shortID = url
-		} else {
-
-			shortID, err = generateShortURL()
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			urlMap[longURL] = shortID
-			idMap[shortID] = longURL
-		}
-
-		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
-
-		w.Header().Set("Content-Type", "text/plain")
-
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(shortURL))
-
+		urlMap[longURL] = shortID
+		idMap[shortID] = longURL
 	}
+
+	shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
+
+	w.Header().Set("Content-Type", "text/plain")
+
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(shortURL))
+
 }
 
 func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
@@ -160,12 +159,15 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 func URLRouter() chi.Router {
 
-	cfg := config.GetConfig()
-
 	router := chi.NewRouter()
-	router.Get("/{shortID}", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerGet)))
-	router.Post("/", logger.ResponseLogger(logger.RequestLogger(shortenURLHandlerPost(cfg))))
-	router.Post("/api/shorten", logger.ResponseLogger(logger.RequestLogger(APIShortenHandlerPost)))
+
+	router.Use(logger.ResponseLogger)
+	router.Use(logger.RequestLogger)
+	router.Use(compress.GzipMiddleware)
+
+	router.Get("/{shortID}", shortenURLHandlerGet)
+	router.Post("/", shortenURLHandlerPost)
+	router.Post("/api/shorten", APIShortenHandlerPost)
 
 	return router
 }
