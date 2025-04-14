@@ -163,14 +163,11 @@ func URLRouter() chi.Router {
 
 	router.Use(logger.ResponseLogger)
 	router.Use(logger.RequestLogger)
-
-	router.Group(func(r chi.Router) {
-		r.Use(compress.GzipMiddleware)
-		r.Post("/", shortenURLHandlerPost)
-		r.Post("/api/shorten", APIShortenHandlerPost)
-	})
+	router.Use(compress.GzipMiddleware)
 
 	router.Get("/{shortID}", shortenURLHandlerGet)
+	router.Post("/", shortenURLHandlerPost)
+	router.Post("/api/shorten", APIShortenHandlerPost)
 
 	return router
 }
