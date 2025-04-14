@@ -49,26 +49,26 @@ func Initialize(level string) error {
 
 }
 
-func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
+func RequestLogger(h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		Log.Info("got incoming HTTP request", zap.String("method", r.Method), zap.String("URI", r.RequestURI))
 		start := time.Now()
-		h(w, r)
+		h.ServeHTTP(w, r)
 		duration := time.Since(start)
 
 		Log.Info("completed HTTP request", zap.Duration("duration", duration))
 	}
 
-	return fn
+	return http.HandlerFunc(fn)
 }
 
-func ResponseLogger(h http.HandlerFunc) http.HandlerFunc {
+func ResponseLogger(h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		lw := &loggingResponseWriter{ResponseWriter: w, responseData: &responseData{}}
-		h(lw, r)
+		h.ServeHTTP(lw, r)
 
 		Log.Info("Response", zap.Int("code", lw.responseData.code), zap.Int("size", lw.responseData.size))
 	}
 
-	return fn
+	return http.HandlerFunc(fn)
 }
