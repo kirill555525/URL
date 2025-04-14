@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"github.com/kirill555525/URL/cmd/config"
 	"github.com/kirill555525/URL/internal/logger"
@@ -22,7 +24,6 @@ func TestShortenURLHandler(t *testing.T) {
 
 	server := httptest.NewServer(URLRouter())
 	defer server.Close()
-	t.Log(server.URL)
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -60,7 +61,7 @@ func TestShortenURLHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request, err := http.NewRequest(http.MethodPost, tt.url, strings.NewReader(tt.body))
 			require.NoError(t, err)
-
+			request.Header.Set("Accept-Encoding", "identity")
 			res, err := client.Do(request)
 			require.NoError(t, err)
 
@@ -72,7 +73,7 @@ func TestShortenURLHandler(t *testing.T) {
 
 				var id string
 
-				if res.Header.Get("Content-Type") == "application/json" {
+				if strings.Contains(res.Header.Get("Content-Type"), "application/json") {
 
 					var resp models.Request
 					require.NoError(t, json.NewDecoder(strings.NewReader(tt.body)).Decode(&resp))
@@ -97,6 +98,7 @@ func TestShortenURLHandler(t *testing.T) {
 
 				request, err = http.NewRequest(http.MethodGet, server.URL+"/"+id, nil)
 				require.NoError(t, err)
+				request.Header.Set("Accept-Encoding", "identity")
 
 				res, err := client.Do(request)
 
@@ -133,6 +135,7 @@ func TestShortenURLHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request, err := http.NewRequest(tt.method, server.URL+tt.url, nil)
 			require.NoError(t, err)
+			request.Header.Set("Accept-Encoding", "identity")
 
 			res, err := client.Do(request)
 			require.NoError(t, err)
@@ -142,5 +145,52 @@ func TestShortenURLHandler(t *testing.T) {
 
 		})
 	}
+
+	requestBody := `{"url": "https://www.google.nl/"}`
+	successBody := `{"result": "` + cfg.BaseURL + `/` + urlMap[`https://www.google.nl/`] + `"}`
+	t.Run("sends_gzip", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
+		zw := gzip.NewWriter(buf)
+
+		_, err := zw.Write([]byte(requestBody))
+		require.NoError(t, err)
+		err = zw.Close()
+		require.NoError(t, err)
+
+		request, err := http.NewRequest(http.MethodPost, server.URL+`/api/shorten`, buf)
+		require.NoError(t, err)
+		request.Header.Set("Content-Encoding", "gzip")
+		request.Header.Set("Accept-Encoding", "identity")
+		request.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(request)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		b, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, successBody, string(b))
+
+	})
+
+	t.Run("accepts_gzip", func(t *testing.T) {
+		buf := bytes.NewBufferString(requestBody)
+		request, err := http.NewRequest(http.MethodPost, server.URL+`/api/shorten`, buf)
+		require.NoError(t, err)
+		request.Header.Set("Accept-Encoding", "gzip")
+		request.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(request)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+
+		b, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		require.JSONEq(t, successBody, string(b))
+	})
 
 }
