@@ -12,11 +12,76 @@ import (
 	"github.com/kirill555525/URL/internal/models"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 )
 
 const shortURLLength = 6 // 8 символов в base64
+
+func ReadURLFile() error {
+	cfg := config.GetConfig()
+
+	if cfg.FileStoragePath == "" {
+		return nil
+	}
+
+	file, err := os.OpenFile(cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+
+	obj := URLStruct{}
+
+	for {
+		err = decoder.Decode(&obj)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		idMap[obj.ShortURL] = obj.OriginalURL
+		urlMap[obj.OriginalURL] = obj.ShortURL
+
+	}
+
+	return nil
+}
+
+func WriteURLFile(shortID string) error {
+	cfg := config.GetConfig()
+
+	if cfg.FileStoragePath == "" {
+		return nil
+	}
+
+	file, err := os.OpenFile(cfg.FileStoragePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	uuid := len(idMap)
+	res := URLStruct{
+		ID:          strconv.Itoa(uuid),
+		ShortURL:    shortID,
+		OriginalURL: idMap[shortID],
+	}
+	err = encoder.Encode(&res)
+	return err
+}
+
+type URLStruct struct {
+	ID          string `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
 
 var (
 	urlMap = make(map[string]string)
@@ -49,6 +114,7 @@ func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 	defer mutex.Unlock()
 
 	if url, ok := idMap[shortID]; ok {
+
 		w.Header().Set("Location", url)
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	} else {
@@ -92,6 +158,12 @@ func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 		urlMap[longURL] = shortID
 		idMap[shortID] = longURL
+
+		err = WriteURLFile(shortID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
@@ -136,6 +208,12 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 		urlMap[longURL] = shortID
 		idMap[shortID] = longURL
+
+		err = WriteURLFile(shortID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
@@ -174,7 +252,11 @@ func URLRouter() chi.Router {
 
 func main() {
 	cfg := config.Init()
-	err := logger.Initialize(cfg.FlagLogLevel)
+	err := ReadURLFile()
+	if err != nil {
+		panic(err)
+	}
+	err = logger.Initialize(cfg.FlagLogLevel)
 	if err != nil {
 		panic(err)
 	}
