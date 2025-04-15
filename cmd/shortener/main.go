@@ -45,8 +45,8 @@ func ReadURLFile() error {
 			return err
 		}
 
-		idMap[obj.ShortURL] = obj.OriginalUrl
-		urlMap[obj.OriginalUrl] = obj.ShortURL
+		idMap[obj.ShortURL] = obj.OriginalURL
+		urlMap[obj.OriginalURL] = obj.ShortURL
 
 	}
 
@@ -69,18 +69,18 @@ func WriteURLFile(shortID string) error {
 	encoder := json.NewEncoder(file)
 	uuid := len(idMap)
 	res := URLStruct{
-		Id:          strconv.Itoa(uuid),
+		ID:          strconv.Itoa(uuid),
 		ShortURL:    shortID,
-		OriginalUrl: idMap[shortID],
+		OriginalURL: idMap[shortID],
 	}
 	err = encoder.Encode(&res)
 	return err
 }
 
 type URLStruct struct {
-	Id          string `json:"uuid"`
+	ID          string `json:"uuid"`
 	ShortURL    string `json:"short_url"`
-	OriginalUrl string `json:"original_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 var (
