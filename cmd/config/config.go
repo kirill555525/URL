@@ -54,6 +54,7 @@ func Init() *Config {
 		BaseURL:         *baseURL,
 		FlagLogLevel:    *flagLogLevel,
 		FileStoragePath: *flagFileStoragePath,
+		DatabaseDSN:     *flagDatabaseDSN,
 	}
 
 	return cfg
