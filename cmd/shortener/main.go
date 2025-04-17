@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/kirill555525/URL/cmd/config"
 	"github.com/kirill555525/URL/internal/compress"
+	"github.com/kirill555525/URL/internal/database"
 	"github.com/kirill555525/URL/internal/logger"
 	"github.com/kirill555525/URL/internal/models"
 	"io"
@@ -17,6 +19,16 @@ import (
 	"strings"
 	"sync"
 )
+
+// PingGetHandler проверяет соединение с базой данных
+func PingGetHandler(w http.ResponseWriter, r *http.Request) {
+	if err := database.CheckConnectDB(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
 
 const shortURLLength = 6 // 8 символов в base64
 
@@ -246,6 +258,7 @@ func URLRouter() chi.Router {
 	router.Get("/{shortID}", shortenURLHandlerGet)
 	router.Post("/", shortenURLHandlerPost)
 	router.Post("/api/shorten", APIShortenHandlerPost)
+	router.Get("/ping", PingGetHandler)
 
 	return router
 }
@@ -260,6 +273,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	db, err := database.ConnectDB()
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
 
 	if err := http.ListenAndServe(cfg.Addr, URLRouter()); err != nil {
 		panic(err)
