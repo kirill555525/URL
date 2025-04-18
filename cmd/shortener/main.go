@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -22,7 +25,7 @@ import (
 
 // PingGetHandler проверяет соединение с базой данных
 func PingGetHandler(w http.ResponseWriter, r *http.Request) {
-	if err := database.CheckConnectDB(); err != nil {
+	if err := database.CheckConnectDB(r.Context()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -122,6 +125,23 @@ func generateShortURL() (string, error) {
 func shortenURLHandlerGet(w http.ResponseWriter, r *http.Request) {
 	shortID := chi.URLParam(r, "shortID")
 
+	if database.IsDBUsed() {
+		url, err := database.ReadURL(r.Context(), shortID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				w.WriteHeader(http.StatusNotFound)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+
+		w.Header().Set("Location", url)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		return
+
+	}
+
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -150,12 +170,42 @@ func shortenURLHandlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	longURL := strings.TrimSpace(string(body))
+	var shortID string
+	cfg := config.GetConfig()
+
+	if database.IsDBUsed() {
+		shortID, err = database.ReadShortID(r.Context(), longURL)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				shortID, err = generateShortURL()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				err = database.WriteURL(r.Context(), shortID, longURL)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
+
+		w.Header().Set("Content-Type", "text/plain")
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(shortURL))
+		return
+
+	}
 
 	mutex.Lock()
 	defer mutex.Unlock()
-	cfg := config.GetConfig()
-
-	var shortID string
 
 	if url, ok := urlMap[longURL]; ok {
 		shortID = url
@@ -201,11 +251,42 @@ func APIShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 
 	longURL := req.URL
 
-	mutex.Lock()
-	defer mutex.Unlock()
+	var shortID string
 	cfg := config.GetConfig()
 
-	var shortID string
+	if database.IsDBUsed() {
+		shortID, err = database.ReadShortID(r.Context(), longURL)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				shortID, err = generateShortURL()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				err = database.WriteURL(r.Context(), shortID, longURL)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		shortURL := fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)
+
+		w.Header().Set("Content-Type", "text/plain")
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(shortURL))
+		return
+
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	if url, ok := urlMap[longURL]; ok {
 		shortID = url
@@ -265,20 +346,33 @@ func URLRouter() chi.Router {
 
 func main() {
 	cfg := config.Init()
-	err := ReadURLFile()
-	if err != nil {
-		panic(err)
-	}
-	err = logger.Initialize(cfg.FlagLogLevel)
+	err := logger.Initialize(cfg.FlagLogLevel)
 	if err != nil {
 		panic(err)
 	}
 
-	db, err := database.ConnectDB()
-	if err != nil {
-		panic(err)
+	if cfg.DatabaseDSN != "" {
+		db, err := database.ConnectDB()
+		if err != nil {
+			panic(err)
+		}
+
+		if err := database.CheckConnectDB(context.Background()); err != nil {
+			panic(err)
+		}
+
+		if err := database.CreateTableURL(context.Background()); err != nil {
+			panic(err)
+		}
+
+		defer db.Close()
+
+	} else {
+		err := ReadURLFile()
+		if err != nil {
+			panic(err)
+		}
 	}
-	defer db.Close()
 
 	if err := http.ListenAndServe(cfg.Addr, URLRouter()); err != nil {
 		panic(err)
