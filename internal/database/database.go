@@ -30,17 +30,13 @@ func GetDB() *sql.DB {
 
 func IsDBUsed() bool {
 	cfg := config.GetConfig()
-	if cfg.DatabaseDSN == "" {
-		return false
-	}
-
-	return true
+	return cfg.DatabaseDSN != ""
 }
 
 func CheckConnectDB(ctx context.Context) error {
 
 	if !IsDBUsed() {
-		return errors.New("Database DSN is empty")
+		return errors.New("database DSN is empty")
 	}
 
 	ctxChild, cancel := context.WithTimeout(ctx, time.Second*3)
