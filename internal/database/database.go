@@ -137,7 +137,7 @@ func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchURL) 
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	checkURLQuery := `SELECT short_url FROM url WHERE original_url = $1`
+	checkURLQuery := `SELECT short_url FROM urls WHERE original_url = $1`
 	insertURLQuery := `INSERT INTO urls (uuid, short_url, original_url) VALUES ($1, $2, $3) RETURNING short_url`
 
 	result := make([]models.ResponseBatchURL, 0, 1000)
