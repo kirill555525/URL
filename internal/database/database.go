@@ -2,10 +2,14 @@ package database
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/kirill555525/URL/cmd/config"
+	"github.com/kirill555525/URL/internal/models"
 	"time"
 )
 
@@ -107,6 +111,8 @@ func ReadURL(ctx context.Context, shortID string) (string, error) {
 
 }
 
+// проверить generateShortURL()
+
 func ReadShortID(ctx context.Context, url string) (string, error) {
 	query := `
 		SELECT short_url FROM url WHERE original_url = $1;
@@ -123,4 +129,59 @@ func ReadShortID(ctx context.Context, url string) (string, error) {
 	}
 	return shortID, nil
 
+}
+
+func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchURL) ([]models.ResponseBatchURL, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	checkURLQuery := `SELECT short_url FROM url WHERE original_url = $1`
+	insertURLQuery := `INSERT INTO url (uuid, short_url, original_url) VALUES ($1, $2, $3) RETURNING short_url`
+
+	result := make([]models.ResponseBatchURL, 0, 1000)
+	cfg := config.GetConfig()
+
+	defer tx.Rollback()
+
+	for _, obj := range req {
+		var shortID string
+		err := tx.QueryRowContext(ctx, checkURLQuery, obj.OriginalURL).Scan(&shortID)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			shortID, err = generateShortURL()
+			if err != nil {
+				return nil, err
+			}
+			id := uuid.New()
+
+			err = tx.QueryRowContext(ctx, insertURLQuery, id, shortID, obj.OriginalURL).Scan(&shortID) // можно переписать на exec
+			if err != nil {
+				return nil, fmt.Errorf("failed to insert new URL: %w", err)
+			}
+
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to query URL: %w", err)
+		}
+
+		result = append(result, models.ResponseBatchURL{CorrelationID: obj.CorrelationID, ShortURL: fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)})
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return result, nil
+
+}
+
+func generateShortURL() (string, error) {
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	res := base64.URLEncoding.EncodeToString(b)
+
+	return res, nil
 }
