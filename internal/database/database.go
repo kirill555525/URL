@@ -131,7 +131,7 @@ func ReadShortID(ctx context.Context, url string) (string, error) {
 
 }
 
-func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchUrl) ([]models.ResponseBatchUrl, error) {
+func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchURL) ([]models.ResponseBatchURL, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -140,14 +140,14 @@ func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchUrl) 
 	checkURLQuery := `SELECT short_url FROM url WHERE original_url = $1`
 	insertURLQuery := `INSERT INTO urls (uuid, short_url, original_url) VALUES ($1, $2, $3) RETURNING short_url`
 
-	result := make([]models.ResponseBatchUrl, 0, 1000)
+	result := make([]models.ResponseBatchURL, 0, 1000)
 	cfg := config.GetConfig()
 
 	defer tx.Rollback()
 
 	for _, obj := range req {
 		var shortID string
-		err := tx.QueryRowContext(ctx, checkURLQuery, obj.OriginalUrl).Scan(&shortID)
+		err := tx.QueryRowContext(ctx, checkURLQuery, obj.OriginalURL).Scan(&shortID)
 
 		if errors.Is(err, sql.ErrNoRows) {
 			shortID, err = generateShortURL()
@@ -156,7 +156,7 @@ func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchUrl) 
 			}
 			id := uuid.New()
 
-			err = tx.QueryRowContext(ctx, insertURLQuery, id, shortID, obj.OriginalUrl).Scan(&shortID) // можно переписать на exec
+			err = tx.QueryRowContext(ctx, insertURLQuery, id, shortID, obj.OriginalURL).Scan(&shortID) // можно переписать на exec
 			if err != nil {
 				return nil, fmt.Errorf("failed to insert new URL: %w", err)
 			}
@@ -165,7 +165,7 @@ func GetORCreateShortURLList(ctx context.Context, req []models.RequestBatchUrl) 
 			return nil, fmt.Errorf("failed to query URL: %w", err)
 		}
 
-		result = append(result, models.ResponseBatchUrl{CorrelationId: obj.CorrelationId, ShortUrl: fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)})
+		result = append(result, models.ResponseBatchURL{CorrelationID: obj.CorrelationID, ShortURL: fmt.Sprintf("%s/%s", cfg.BaseURL, shortID)})
 	}
 
 	err = tx.Commit()
@@ -184,5 +184,4 @@ func generateShortURL() (string, error) {
 	res := base64.URLEncoding.EncodeToString(b)
 
 	return res, nil
-
 }

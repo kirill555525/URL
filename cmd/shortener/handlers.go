@@ -180,11 +180,11 @@ func BatchShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]models.RequestBatchUrl, 0, 1000)
-	result := make([]models.ResponseBatchUrl, 0, 1000)
+	items := make([]models.RequestBatchURL, 0, 1000)
+	result := make([]models.ResponseBatchURL, 0, 1000)
 
 	for decoder.More() {
-		var item models.RequestBatchUrl
+		var item models.RequestBatchURL
 
 		err := decoder.Decode(&item)
 		if err != nil {
@@ -205,14 +205,14 @@ func BatchShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 				result = append(result, resp...)
 			}
 		} else {
-			longURL, err := getORCreateShortURLNODB(item.OriginalUrl)
+			longURL, err := getORCreateShortURLNODB(item.OriginalURL)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			result = append(result, models.ResponseBatchUrl{
-				CorrelationId: item.CorrelationId,
-				ShortUrl:      longURL,
+			result = append(result, models.ResponseBatchURL{
+				CorrelationID: item.CorrelationID,
+				ShortURL:      longURL,
 			})
 		}
 
@@ -232,6 +232,8 @@ func BatchShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON array end", http.StatusBadRequest)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
 
 	encode := json.NewEncoder(w)
 	err = encode.Encode(result)
