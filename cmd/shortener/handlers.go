@@ -234,6 +234,7 @@ func BatchShortenHandlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 
 	encode := json.NewEncoder(w)
 	err = encode.Encode(result)
