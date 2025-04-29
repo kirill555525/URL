@@ -7,7 +7,7 @@ import (
 	"github.com/kirill555525/URL/internal/controllers"
 	"github.com/kirill555525/URL/internal/logger"
 	"github.com/kirill555525/URL/internal/models"
-	"github.com/kirill555525/URL/internal/store/postgres"
+	"github.com/kirill555525/URL/internal/store/memory"
 	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
@@ -22,11 +22,7 @@ func TestBaseController(t *testing.T) {
 	err := logger.Initialize(cfg.FlagLogLevel)
 	require.NoError(t, err)
 
-	//storage := memory.NewStore()
-	storage, err := postgres.NewStore(cfg.DatabaseDSN)
-	require.NoError(t, err)
-	//storage := file.NewStore(cfg.FileStoragePath, stor)
-	//
+	storage := memory.NewStore()
 	defer storage.Close()
 
 	controller := controllers.NewBaseController(storage)
@@ -102,8 +98,9 @@ func TestBaseController(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Accept-Encoding", "identity") // чтоб отключить gzip middleware
 			resp, err := client.Do(req)
-			defer resp.Body.Close()
 			require.NoError(t, err)
+			defer resp.Body.Close()
+
 			require.Equal(t, test.expectedCode, resp.StatusCode)
 
 			if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusConflict {
@@ -125,8 +122,8 @@ func TestBaseController(t *testing.T) {
 				req, err := http.NewRequest(http.MethodGet, server.URL+"/"+res[l-8:], strings.NewReader(res))
 				require.NoError(t, err)
 				resp, err := client.Do(req)
-				defer resp.Body.Close()
 				require.NoError(t, err)
+				defer resp.Body.Close()
 				require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 				location := test.body
@@ -177,8 +174,8 @@ func TestBaseController(t *testing.T) {
 			req, err := http.NewRequest(test.method, server.URL+path, nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
-			defer resp.Body.Close()
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			require.Equal(t, test.expectedCode, resp.StatusCode)
 			if test.expectedCode == http.StatusTemporaryRedirect {
 				require.Equal(t, urlToShorten, resp.Header.Get("Location"))

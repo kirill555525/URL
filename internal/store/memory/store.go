@@ -24,7 +24,7 @@ func NewStore() *Store {
 }
 
 func (s *Store) Close() {
-	return
+	
 }
 
 func (s *Store) CheckConnectDB(ctx context.Context) error {

@@ -65,7 +65,6 @@ func (c *BaseController) getOriginalURL(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusTemporaryRedirect)
-	return
 
 }
 

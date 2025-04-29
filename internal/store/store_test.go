@@ -1,13 +1,11 @@
 package store_test
 
 import (
+	"context"
 	"github.com/kirill555525/URL/cmd/config"
 	"github.com/kirill555525/URL/internal/logger"
 	"github.com/kirill555525/URL/internal/store"
-	"github.com/kirill555525/URL/internal/store/postgres"
-
-	//"URL/internal/store/postgres"
-	"context"
+	"github.com/kirill555525/URL/internal/store/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -17,9 +15,9 @@ func TestMemory(t *testing.T) {
 	cfg := config.Init()
 	err := logger.Initialize(cfg.FlagLogLevel)
 	require.NoError(t, err)
-	storage, err := postgres.NewStore(cfg.DatabaseDSN)
-	require.NoError(t, err)
-	//storage := memory.NewStore()
+	//storage, err := postgres.NewStore(cfg.DatabaseDSN)
+	//require.NoError(t, err)
+	storage := memory.NewStore()
 	//mem := memory.NewStore()
 	//storage := file.NewStore(cfg.FileStoragePath, mem)
 

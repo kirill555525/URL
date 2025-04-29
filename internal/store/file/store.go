@@ -74,7 +74,7 @@ func (s *Store) readURLFile() error {
 			return err
 		}
 
-		_, err = s.Memory.SaveIDAndURL(nil, obj.ShortID, obj.OriginalURL)
+		_, err = s.Memory.SaveIDAndURL(context.TODO(), obj.ShortID, obj.OriginalURL)
 		if err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func (s *Store) SaveIDAndURLJSONList(ctx context.Context, shortIDList []string, 
 		originalURL := originalURLJSONList[i].OriginalURL
 
 		res, err := s.Memory.SaveIDAndURL(ctx, shortID, originalURL)
-		var isWrite bool = true
+		var isWrite = true
 
 		if errors.Is(err, store.ErrURLAlreadyExists) {
 			shortID = res
